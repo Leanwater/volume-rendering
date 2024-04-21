@@ -1,0 +1,15 @@
+// color_vert
+
+varying vec3 vRayDir;
+varying vec3 vCameraPosition;
+uniform vec3 volumeSize;
+
+void main() {
+    // Transform the vertex position from object space to clip space
+    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+
+    // Calculate the viewing direction and pass it to the fragment shader
+    vec3 vPosition = (position / volumeSize + 0.5);
+    vCameraPosition = (cameraPosition / volumeSize + 0.5);
+    vRayDir = vPosition - vCameraPosition;
+}
