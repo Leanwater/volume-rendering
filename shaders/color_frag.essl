@@ -16,7 +16,7 @@ uniform vec3 shaderColors[10];
 // phong shading parameters
 float ambient = 0.3;
 float diffuse = 0.6;
-float specular = 0.3;
+float specular = 0.2;
 
 void main() {
     vec3 normRayDir = normalize(vRayDir);
@@ -29,51 +29,58 @@ void main() {
     vec3 tMin = (boxMin - vCameraPosition) / normRayDir;
     vec3 tMax = (boxMax - vCameraPosition) / normRayDir;
 
-    // Entry and exit point of the ray with the box.
     float tEntry = max(max(min(tMin.x, tMax.x), min(tMin.y, tMax.y)), min(tMin.z, tMax.z));
     float tExit = min(min(max(tMin.x, tMax.x), max(tMin.y, tMax.y)), max(tMin.z, tMax.z));
+    if (tEntry > tExit) {
+            discard;
+    }
+
+    vec3 start = vCameraPosition + tEntry * normRayDir;
 
     // Initialize the maximum density to zero
     vec3 fragColor = vec3(1.0);
     float maxDensity = 0.0;
 
     // Calculate the step size for sampling the volume
-    float stepSize = 1.0 / ((max(max(volumeSize.x, volumeSize.y), volumeSize.z)) * 2.0);
+    // ?
+    // ?
+    vec3 stepSize = 1.0 / (vec3(volumeSize) * abs(normRayDir));
+    float dt = min(stepSize.x, min(stepSize.y, stepSize.z));
+
+    vec3 rayPosPrev = start;
+    // ?
+    float voxelPrev = texture(volumeTexture, rayPosPrev.xyz).r;
+
+    vec3 rayPosCurr = start;
+    float voxelCurr;
+
+    vec3 firstHit = vec3(0.5);
 
     vec3 colorSum = vec3(0.0);
     float intensitySum = 0.0;
 
     // Cast a ray from the entry point to the exit point
-    for (float t = tEntry; t <= tExit; t += stepSize) {
+    for (float t = tEntry; t < tExit; t += dt) {
 
-        // Calculate the current position along the ray
-        vec3 currentPosition = vCameraPosition + t * normRayDir;
-        vec3 nextPosition = vCameraPosition + ((t + stepSize) * normRayDir);
-
-        // Sampling the volume at the current position
-        float currentValue = texture(volumeTexture, currentPosition).r;
-        float nextValue = texture(volumeTexture, nextPosition).r;
+        rayPosCurr += normRayDir * dt;
+        voxelCurr = texture(volumeTexture, rayPosCurr.xyz).r;
 
         // Maximum intensity projection
-        if(mip) {
+        if(!mip) {
 
-            maxDensity = max(currentValue, maxDensity);
-
-        } else {
-
-            float minSample = min(currentValue, nextValue);
-            float maxSample = max(currentValue, nextValue);
+            float minSample = min(voxelPrev, voxelCurr);
+            float maxSample = max(voxelPrev, voxelCurr);
             for(int i = 0; i < shaderColorsLength; i++){
-                vec2 currParams = shaderColorsIndex[i];
 
+                vec2 currParams = shaderColorsIndex[i];
                 float density = currParams.x;
                 float intensity = currParams.y;
 
-                // Checking if we hit a high enough value between the samples
+                // Checking if we hit a maxSample enough value between the samples
                 if (minSample < density && density <= maxSample) {
 
-                    float mixValue = (density - currentValue) / (currentValue - nextValue);
-                    vec3 firstHit = mix(currentPosition, nextPosition, mixValue);
+                    float mixValue = (density - voxelPrev) / (voxelCurr - voxelPrev);
+                    vec3 firstHit = mix(rayPosPrev, rayPosCurr, mixValue);
 
                     // Calculating the gradient
                     mat3 diff = mat3(1) * 0.01;
@@ -99,10 +106,17 @@ void main() {
                     // colorSum = firstHit;
                     // intensitySum = 1.0;
 
+                    gl_FragColor = vec4(colorSum, intensitySum);
                 }
             }
-            gl_FragColor = vec4(colorSum, intensitySum);
+            rayPosPrev = rayPosCurr;
+            voxelPrev = voxelCurr;
+        }
+        else {
+            maxDensity = max(voxelCurr, maxDensity);
         }
     }
+
+
     if(mip) gl_FragColor = vec4(fragColor, maxDensity);
 }

@@ -44,7 +44,7 @@ function init() {
 
     // dummy shader gets a color as input
     // shader = new Shader("color_vert", "color_frag");
-    shader = new Shader("color_vert", "color_frag_copy");
+    shader = new Shader("color_vert", "color_frag");
 
     renderTarget = new THREE.WebGLRenderTarget(canvasWidth, canvasHeight);
 }
